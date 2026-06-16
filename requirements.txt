@@ -1,0 +1,6 @@
+opencv-python
+numpy
+chess
+ultralytics
+pillow
+google-genai

@@ -14,7 +14,7 @@ This project is an end-to-end computer vision and AI pipeline that detects chess
 ## 🛠️ Installation & Setup
 1. Clone this repository:
    ```bash
-   git clone [https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPOSITORY_NAME.git](https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPOSITORY_NAME.git)
+   git clone [https://github.com/ZeroHighx/ChessPieces_detection_with_camera_and_YOLOv8.git](https://github.com/ZeroHighx/ChessPieces_detection_with_camera_and_YOLOv8.git)
 Install the required dependencies:
 
 Bash

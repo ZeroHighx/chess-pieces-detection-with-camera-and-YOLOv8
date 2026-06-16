@@ -10,25 +10,23 @@ This project is an end-to-end computer vision and AI pipeline that detects chess
 * **Chess Engine Integration:** Analyzes the validated board state using the Stockfish engine to predict the most optimal moves.
 
 ## 🛠️ Installation & Setup
+
 1. Clone this repository:
-   ```bash
-   git clone [https://github.com/ZeroHighx/ChessPieces_detection_with_camera_and_YOLOv8.git](https://github.com/ZeroHighx/ChessPieces_detection_with_camera_and_YOLOv8.git)
-Install the required dependencies:
-   pip install -r requirements.txt
-   
-Download the Stockfish Engine and update the STOCKFISH_PATH variable in main.py.
+   `git clone https://github.com/ZeroHighx/ChessPieces_detection_with_camera_and_YOLOv8.git`
 
-Get a free Google Gemini API Key from Google AI Studio and paste it into the GEMINI_API_KEY variable.
+2. Install the required dependencies:
+   `pip install -r requirements.txt`
 
-Update the CAMERA_ADDRESS (use 0 for default webcam or your IP Camera URL).
+3. Download the [Stockfish Engine](https://stockfishchess.org/download/) and update the `STOCKFISH_PATH` variable in `camera_detected.py`.
 
-Run the system:
-   python main.py
+4. Get a free Google Gemini API Key from Google AI Studio and paste it into the `GEMINI_API_KEY` variable.
 
-   
-🎮 How to Use
-L: Lock camera view and start automatic board tracking.
+5. Update the `CAMERA_ADDRESS` (use `0` for default webcam or your IP Camera URL).
 
-R: Reset tracking points for manual corner selection (Click 4 corners of the board).
+6. Run the system:
+   `python camera_detected.py`
 
-C: Capture the current frame and run the Hybrid Analysis Pipeline (YOLO -> GUI Correction -> Stockfish).
+## 🎮 How to Use
+* **L:** Lock camera view and start automatic board tracking.
+* **R:** Reset tracking points for manual corner selection (Click 4 corners of the board).
+* **C:** Capture the current frame and run the Hybrid Analysis Pipeline (YOLO -> GUI Correction -> Stockfish).

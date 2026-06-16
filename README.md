@@ -1,5 +1,3 @@
-# chess-pieces-detection-with-camera-and-YOLOv8
-Markdown
 # Real-Time Chess Vision & Analysis Pipeline ♟️🤖
 
 This project is an end-to-end computer vision and AI pipeline that detects chess pieces from a live camera feed, generates FEN codes, and uses the Stockfish engine to recommend the best moves. It features a fault-tolerant hybrid architecture utilizing both local YOLO models and the cloud-based Google Gemini API.
@@ -16,9 +14,8 @@ This project is an end-to-end computer vision and AI pipeline that detects chess
    ```bash
    git clone [https://github.com/ZeroHighx/ChessPieces_detection_with_camera_and_YOLOv8.git](https://github.com/ZeroHighx/ChessPieces_detection_with_camera_and_YOLOv8.git)
 Install the required dependencies:
-
-Bash
-pip install -r requirements.txt
+   pip install -r requirements.txt
+   
 Download the Stockfish Engine and update the STOCKFISH_PATH variable in main.py.
 
 Get a free Google Gemini API Key from Google AI Studio and paste it into the GEMINI_API_KEY variable.
@@ -26,9 +23,9 @@ Get a free Google Gemini API Key from Google AI Studio and paste it into the GEM
 Update the CAMERA_ADDRESS (use 0 for default webcam or your IP Camera URL).
 
 Run the system:
+   python main.py
 
-Bash
-python main.py
+   
 🎮 How to Use
 L: Lock camera view and start automatic board tracking.
 

@@ -1,0 +1,1 @@
+# chess-pieces-detection-with-camera-and-YOLOv8

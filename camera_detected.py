@@ -1,395 +1,421 @@
 import cv2
 import numpy as np
-import chess
-import chess.engine
 from ultralytics import YOLO
-from PIL import Image
-from google import genai
-import tkinter as tk
+from stockfish import Stockfish
+import pygame
+import sys
+import os
+import urllib.request
 
 # ==========================================
 # 1. SETTINGS AND PATHS
 # ==========================================
 # Update this path to where Stockfish is located on your local machine
-STOCKFISH_PATH = r"C:\path\to\your\stockfish\stockfish-windows-x86-64-avx2.exe" 
 
-# Use 0 for default webcam, or replace with your IP webcam address 
-CAMERA_ADDRESS = "http://YOUR_PHONE_IP:8080/video"
+CAMERA_ADDRESS = "http://YOUR_PHONE_IP:8080/video" # # Use 0 for default webcam, or replace with your IP webcam address
+MODEL_PATH = "chess-model-yolov8m.pt" 
+STOCKFISH_PATH = r"C:\path\to\your\stockfish\stockfish-windows-x86-64-avx2.exe" # Add your local Stockfish executable path here
 
-YOLO_MODEL_PATH = "chess-model-yolov8m.pt" 
+print("Sistem yükleniyor, lütfen bekleyin...")
 try:
-    print("Loading Local AI (YOLO)...")
-    model = YOLO(YOLO_MODEL_PATH)
+    yolo_model = YOLO(MODEL_PATH)
+    stockfish = Stockfish(path=STOCKFISH_PATH)
+    print("Modeller başarıyla yüklendi!\n")
 except Exception as e:
-    print(f"ERROR: YOLO model not found! {e}")
+    print(f"HATA: Modeller yüklenemedi! Ayrıntı: {e}")
+    sys.exit()
 
-def create_yolo_dict(model_names):
-    dictionary = {}
-    for obj_id, name in model_names.items():
-        name_str = name.lower()
-        letter = ''
-        if 'bishop' in name_str: letter = 'b'
-        elif 'king' in name_str: letter = 'k'
-        elif 'knight' in name_str: letter = 'n'
-        elif 'pawn' in name_str: letter = 'p'
-        elif 'queen' in name_str: letter = 'q'
-        elif 'rook' in name_str: letter = 'r'
-        if 'white' in name_str: letter = letter.upper()
-        dictionary[obj_id] = letter
-    return dictionary
-YOLO_CLASS_LETTERS = create_yolo_dict(model.names)
-
-# IMPORTANT: Never share your actual API key publicly!
-GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE" 
-try:
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    print("Cloud AI (Gemini) Connection Ready!")
-except Exception as e:
-    print(f"ERROR: Failed to initialize Gemini Client! {e}")
+points = []
 
 # ==========================================
-# 2. TRACKING AND MARGIN SETTINGS
+# 🎨 ASSET DOWNLOAD ENGINE
 # ==========================================
-system_mode = 'AUTO' 
-corner_points = []
-current_matrix_M = None
-
-lk_params = dict(winSize=(21, 21), maxLevel=2, criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
-old_gray_frame = None 
-p0 = None            
-
-MARGIN = 60 # 60 pixels breathing room for pieces (prevents heads from being cropped)
-
-def order_points(pts):
-    rect = np.zeros((4, 2), dtype="float32")
-    s = pts.sum(axis=1)
-    rect[0] = pts[np.argmin(s)] 
-    rect[2] = pts[np.argmax(s)] 
-    diff = np.diff(pts, axis=1)
-    rect[1] = pts[np.argmin(diff)] 
-    rect[3] = pts[np.argmax(diff)] 
-    return rect
-
-def mouse_click(event, x, y, flags, param):
-    global corner_points, system_mode, p0, old_gray_frame, gray_frame
-    if event == cv2.EVENT_LBUTTONDOWN and system_mode == 'MANUAL':
-        if len(corner_points) < 4:
-            corner_points.append((x, y))
-            print(f"Point added: ({x}, {y}) - Total: {len(corner_points)}/4")
-            if len(corner_points) == 4:
-                pts = np.array(corner_points, dtype="float32")
-                pts = order_points(pts)
-                p0 = np.array(pts, dtype=np.float32).reshape(-1, 1, 2)
-                old_gray_frame = gray_frame.copy()
-                system_mode = 'TRACKING'
-                print("--- 4 POINTS SET, TRACKING STARTED ---")
-
-# ==========================================
-# 3. LOCAL, CLOUD, AND GUI FUNCTIONS
-# ==========================================
-
-# Unicode Chess Symbols for GUI
-PIECE_UNICODE = {
-    'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
-    'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟',
-    '': ' '
+FEN_TO_URL = {
+    'r': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/br.png',
+    'n': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bn.png',
+    'b': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bb.png',
+    'q': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bq.png',
+    'k': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bk.png',
+    'p': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bp.png',
+    'R': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wr.png',
+    'N': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wn.png',
+    'B': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wb.png',
+    'Q': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wq.png',
+    'K': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wk.png',
+    'P': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wp.png'
 }
 
-def fen_to_board(fen):
-    board = [['' for _ in range(8)] for _ in range(8)]
-    rows = fen.split(' ')[0].split('/')
-    for r, row in enumerate(rows):
-        c = 0
-        for char in row:
-            if char.isdigit():
-                c += int(char)
-            else:
-                board[r][c] = char
-                c += 1
-    return board
+FEN_TO_FILE = {
+    'r': 'b_r.png', 'n': 'b_n.png', 'b': 'b_b.png', 'q': 'b_q.png', 'k': 'b_k.png', 'p': 'b_p.png',
+    'R': 'w_R.png', 'N': 'w_N.png', 'B': 'w_B.png', 'Q': 'w_Q.png', 'K': 'w_K.png', 'P': 'w_P.png'
+}
 
-def board_to_fen(board):
-    fen_rows = []
-    for row in board:
-        empty = 0
-        fen_row = ""
-        for square in row:
-            if square == '':
-                empty += 1
-            else:
-                if empty > 0:
-                    fen_row += str(empty)
-                    empty = 0
-                fen_row += square
-        if empty > 0:
-            fen_row += str(empty)
-        fen_rows.append(fen_row)
-    return "/".join(fen_rows) + " w KQkq - 0 1"
-
-def visual_fen_corrector(initial_fen):
-    """
-    Displays an interactive chessboard to the user,
-    allows manual correction of errors, and returns the approved FEN.
-    """
-    approved_fen = initial_fen
-    
-    root = tk.Tk()
-    root.title("YOLO Error Correction Panel")
-    root.attributes('-topmost', True)
-    
-    try:
-        board_matrix = fen_to_board(initial_fen)
-    except Exception:
-        board_matrix = [['' for _ in range(8)] for _ in range(8)]
+def download_chess_pieces():
+    asset_dir = "pieces"
+    if not os.path.exists(asset_dir):
+        os.makedirs(asset_dir)
         
-    buttons = [[None for _ in range(8)] for _ in range(8)]
-    selected_button = [None] 
-    
-    # --- Top Palette (Piece Selection) ---
-    palette_frame = tk.Frame(root, bg="#2b2b2b")
-    palette_frame.pack(side=tk.TOP, fill=tk.X, pady=5)
-    
-    tk.Label(palette_frame, text="1. Select the square you want to correct on the board.\n2. Choose a new piece below or click 'X' to clear it.", 
-             bg="#2b2b2b", fg="white", font=("Arial", 12)).pack(pady=5)
-    
-    piece_btn_frame = tk.Frame(palette_frame, bg="#2b2b2b")
-    piece_btn_frame.pack()
-    
-    def select_piece(letter):
-        if selected_button[0] is not None:
-            r, c = selected_button[0]
-            board_matrix[r][c] = letter
-            buttons[r][c].config(text=PIECE_UNICODE[letter])
-            
-            for i in range(8):
-                for j in range(8):
-                    color = "#F0D9B5" if (i+j)%2==0 else "#B58863"
-                    buttons[i][j].config(bg=color)
-            selected_button[0] = None
+    missing_files = False
+    for filename in FEN_TO_FILE.values():
+        if not os.path.exists(os.path.join(asset_dir, filename)):
+            missing_files = True
+            break
 
-    for letter, uni in PIECE_UNICODE.items():
-        text = uni if uni != ' ' else 'X (CLEAR)'
-        fg_color = "black" if letter.isupper() else "blue" 
-        if text == 'X (CLEAR)': fg_color = "red"
-        
-        b = tk.Button(piece_btn_frame, text=text, font=("Arial", 18), width=4, fg=fg_color,
-                      command=lambda h=letter: select_piece(h))
-        b.pack(side=tk.LEFT, padx=2)
+    if missing_files:
+        print("Eksik görseller tespit edildi. Chess.com sunucularından taşlar indiriliyor...")
+        for fen_char, url in FEN_TO_URL.items():
+            filepath = os.path.join(asset_dir, FEN_TO_FILE[fen_char])
+            if not os.path.exists(filepath): 
+                try:
+                    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req) as response, open(filepath, 'wb') as out_file:
+                        out_file.write(response.read())
+                except Exception as e:
+                    print(f"Uyarı: {fen_char} taşı indirilemedi. ({e})")
+        print("Görseller başarıyla yüklendi!\n")
 
-    # --- Chess Board UI ---
-    board_frame = tk.Frame(root)
-    board_frame.pack(pady=10)
-    
-    def click_square(r, c):
-        selected_button[0] = (r, c)
-        for i in range(8):
-            for j in range(8):
-                color = "#F0D9B5" if (i+j)%2==0 else "#B58863"
-                buttons[i][j].config(bg=color)
-        buttons[r][c].config(bg="#FFCE33") # Highlight selected square
-        
-    for r in range(8):
-        for c in range(8):
-            color = "#F0D9B5" if (r+c)%2==0 else "#B58863"
-            letter = board_matrix[r][c]
-            fg_color = "black" if letter.isupper() else "blue"
-            
-            btn = tk.Button(board_frame, text=PIECE_UNICODE[letter], font=("Segoe UI Symbol", 24), 
-                            width=3, height=1, bg=color, fg=fg_color,
-                            command=lambda r=r, c=c: click_square(r, c))
-            btn.grid(row=r, column=c)
-            buttons[r][c] = btn
+download_chess_pieces()
 
-    # --- Approve Button ---
-    def approve():
-        nonlocal approved_fen
-        approved_fen = board_to_fen(board_matrix)
-        root.destroy()
-        
-    tk.Button(root, text="FINISH CORRECTION AND APPROVE", font=("Arial", 14, "bold"), bg="#4CAF50", fg="white", 
-              width=30, height=2, command=approve).pack(pady=10)
-    
-    root.mainloop()
-    return approved_fen
+# ==========================================
+# 🧠 COMPUTER VISION FUNCTIONS
+# ==========================================
+def click_event(event, x, y, flags, params):
+    global points
+    if event == cv2.EVENT_LBUTTONDOWN:
+        if len(points) < 4:
+            points.append([x, y])
 
-def generate_fen_from_yolo(original_img, matrix_M):
-    board_matrix = [['' for _ in range(8)] for _ in range(8)]
-    confidence_matrix = [[0.0 for _ in range(8)] for _ in range(8)] 
+def auto_detect_board(frame):
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    edges = cv2.Canny(thresh, 50, 150)
     
-    results = model.predict(original_img, conf=0.45, iou=0.45, verbose=False)
+    kernel = np.ones((5, 5), np.uint8)
+    dilated = cv2.dilate(edges, kernel, iterations=1)
+    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if not contours: return None
+    largest_contour = max(contours, key=cv2.contourArea)
+    if cv2.contourArea(largest_contour) < 10000: return None
+
+    epsilon = 0.05 * cv2.arcLength(largest_contour, True)
+    approx = cv2.approxPolyDP(largest_contour, epsilon, True)
+
+    if len(approx) == 4:
+        pts = approx.reshape(4, 2)
+        rect = np.zeros((4, 2), dtype="float32")
+        s = pts.sum(axis=1)
+        rect[0] = pts[np.argmin(s)] 
+        rect[2] = pts[np.argmax(s)] 
+        diff = np.diff(pts, axis=1)
+        rect[1] = pts[np.argmin(diff)] 
+        rect[3] = pts[np.argmax(diff)] 
+        return rect
+    return None
+
+def warp_board(frame, pts):
+    rect = np.array(pts, dtype="float32")
+    (tl, tr, br, bl) = rect
+    widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+    widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+    maxWidth = max(int(widthA), int(widthB))
+    heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+    heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+    maxHeight = max(int(heightA), int(heightB))
+
+    dst = np.array([[0, 0], [maxWidth - 1, 0], [maxWidth - 1, maxHeight - 1], [0, maxHeight - 1]], dtype="float32")
+    M = cv2.getPerspectiveTransform(rect, dst)
+    return cv2.warpPerspective(frame, M, (maxWidth, maxHeight))
+
+# ==========================================
+# 🛠️ MATRIX, RULE FILTER AND PYGAME INTERFACE
+# ===========================================
+def generate_matrix_from_yolo(results, warped_img):
+    board_matrix = [["" for _ in range(8)] for _ in range(8)]
+    h, w = warped_img.shape[:2]
+    sq_h, sq_w = h / 8, w / 8
+    
+    FEN_MAP = {
+        'black-rook': 'r', 'black_rook': 'r', 'r': 'r', 'black rook': 'r',
+        'black-knight': 'n', 'black_knight': 'n', 'n': 'n', 'black knight': 'n',
+        'black-bishop': 'b', 'black_bishop': 'b', 'b': 'b', 'black bishop': 'b',
+        'black-queen': 'q', 'black_queen': 'q', 'q': 'q', 'black queen': 'q',
+        'black-king': 'k', 'black_king': 'k', 'k': 'k', 'black king': 'k',
+        'black-pawn': 'p', 'black_pawn': 'p', 'p': 'p', 'black pawn': 'p',
+        'white-rook': 'R', 'white_rook': 'R', 'R': 'R', 'white rook': 'R',
+        'white-knight': 'N', 'white_knight': 'N', 'N': 'N', 'white knight': 'N',
+        'white-bishop': 'B', 'white_bishop': 'B', 'B': 'B', 'white bishop': 'B',
+        'white-queen': 'Q', 'white_queen': 'Q', 'Q': 'Q', 'white queen': 'Q',
+        'white-king': 'K', 'white_king': 'K', 'K': 'K', 'white king': 'K',
+        'white-pawn': 'P', 'white_pawn': 'P', 'P': 'P', 'white pawn': 'P'
+    }
     
     for box in results[0].boxes:
-        x_center = float(box.xywh[0][0])
-        y_center = float(box.xywh[0][1])
-        h = float(box.xywh[0][3])
+        x_center, y_center = int(box.xywh[0][0]), int(box.xywh[0][1])
         class_id = int(box.cls[0])
-        confidence_score = float(box.conf[0])
+        raw_name = results[0].names[class_id].lower()
+        piece_char = FEN_MAP.get(raw_name, "")
         
-        base_x = x_center
-        base_y = y_center + (h * 0.35) 
-        piece_letter = YOLO_CLASS_LETTERS.get(class_id, '?')
+        if piece_char:
+            col, row = int(x_center // sq_w), int(y_center // sq_h)
+            if 0 <= row < 8 and 0 <= col < 8:
+                board_matrix[row][col] = piece_char
+    return board_matrix
 
-        point = np.array([[[base_x, base_y]]], dtype=np.float32)
-        transformed_point = cv2.perspectiveTransform(point, matrix_M)
-        
-        bx, by = transformed_point[0][0][0], transformed_point[0][0][1]
-        
-        if MARGIN <= bx < MARGIN + 400 and MARGIN <= by < MARGIN + 400:
-            col = int((bx - MARGIN) // 50)
-            row = int((by - MARGIN) // 50)
-            if confidence_score > confidence_matrix[row][col]:
-                board_matrix[row][col] = piece_letter
-                confidence_matrix[row][col] = confidence_score
-
-    return board_to_fen(board_matrix)
-
-def get_fen_from_gemini(original_img, matrix_M):
-    total_size = 400 + (MARGIN * 2)
-    clean_warped = cv2.warpPerspective(original_img, matrix_M, (total_size, total_size))
-    
-    rgb_board = cv2.cvtColor(clean_warped, cv2.COLOR_BGR2RGB)
-    pil_image = Image.fromarray(rgb_board)
-    
-    prompt = """
-    You are an expert chess engine vision module. 
-    There is a perspective-corrected chessboard in the image below. 
-    ONLY return the standard FEN code of the board setup. 
-    You are viewing the board from white's perspective (the bottom row is the 1st rank).
-    Never provide explanations, do not use Markdown. Just give the FEN code.
-    """
-    
-    try:
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=[prompt, pil_image]
-        )
-        fen_code = response.text.strip().replace("```fen", "").replace("```", "").strip()
-        return fen_code
-    except Exception as e:
-        print(f"API Connection Error: {e}")
-        return None
-
-def is_position_valid(fen_code):
-    try:
-        board = chess.Board(fen_code)
-        return board.is_valid()
-    except:
-        return False
-
-def find_best_move(fen_code):
-    try:
-        engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH)
-        board = chess.Board(fen_code)
-        result = engine.play(board, chess.engine.Limit(time=0.5)) 
-        best_move = result.move
-        engine.quit()
-        return str(best_move).upper()
-    except Exception as e:
-        return f"Stockfish Error: {e}"
-
-# ==========================================
-# 4. MAIN LOOP AND CAMERA
-# ==========================================
-cap = cv2.VideoCapture(CAMERA_ADDRESS)
-
-cv2.namedWindow('Original Camera', cv2.WINDOW_NORMAL)
-cv2.resizeWindow('Original Camera', 640, 480)
-cv2.setMouseCallback('Original Camera', mouse_click)
-
-while True:
-    ret, frame = cap.read()
-    if not ret: break
-
-    clean_frame = frame.copy()
-    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-    if system_mode == 'AUTO':
-        cv2.putText(frame, "[AUTO] L: Lock | R: Manual Select", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        blur = cv2.GaussianBlur(gray_frame, (5, 5), 0)
-        edges = cv2.Canny(blur, 100, 200)
-        edges = cv2.dilate(edges, None, iterations=1)
-        edges = cv2.erode(edges, None, iterations=1)
-        contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5] 
-
-        best_cnt = None
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-            if area > 30000:  
-                peri = cv2.arcLength(cnt, True)
-                approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
-                if len(approx) == 4:
-                    x, y, w, h = cv2.boundingRect(approx)
-                    if 0.5 <= float(w) / h <= 1.5:
-                        best_cnt = approx
-                        break 
-        if best_cnt is not None:
-            cv2.drawContours(frame, [best_cnt], -1, (0, 255, 0), 4)
-
-    elif system_mode == 'MANUAL':
-        cv2.putText(frame, "[MANUAL] Click 4 Corners", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
-        for point in corner_points:
-            cv2.circle(frame, point, 8, (0, 255, 255), -1)
-
-    elif system_mode == 'TRACKING':
-        cv2.putText(frame, "[TRACKING LOCKED] C: Hybrid Analysis | R: Reset", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        p1, st, err = cv2.calcOpticalFlowPyrLK(old_gray_frame, gray_frame, p0, None, **lk_params)
-        
-        if p1 is not None and len(p1[st==1]) == 4:
-            p0 = p1.copy()
-            old_gray_frame = gray_frame.copy()
-            pts_current = p0.reshape(4, 2)
+def apply_chess_rules(board_matrix):
+    """Satranç kurallarına uymayan yapay zeka halüsinasyonlarını otomatik temizler."""
+    for r in range(8):
+        for c in range(8):
+            piece = board_matrix[r][c]
+            if not piece: continue
             
-            dst = np.array([
-                [MARGIN, MARGIN], 
-                [MARGIN + 399, MARGIN], 
-                [MARGIN + 399, MARGIN + 399], 
-                [MARGIN, MARGIN + 399]
-            ], dtype="float32")
-            
-            current_matrix_M = cv2.getPerspectiveTransform(pts_current, dst)
-            pts_draw = np.int32(pts_current).reshape((-1, 1, 2))
-            cv2.polylines(frame, [pts_draw], isClosed=True, color=(0, 255, 0), thickness=3)
-        else:
-            cv2.putText(frame, "TRACKING LOST! Press R to reset.", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            # KURAL: 1. (r=7) ve 8. (r=0) yatayda piyon olamaz!
+            if piece.lower() == 'p' and (r == 0 or r == 7):
+                print(f"Hakem Filtresi: Yapay zeka {r}. indeks satırında hatalı bir piyon buldu. Taş otomatik olarak silindi!")
+                board_matrix[r][c] = ""
+                
+    return board_matrix
 
-    cv2.imshow('Original Camera', frame)
-
-    key = cv2.waitKey(1) & 0xFF
-    if key == ord('q'):
-        break
-    elif key == ord('l') and system_mode == 'AUTO':
-        if best_cnt is not None:
-            pts = best_cnt.reshape(4, 2)
-            pts = order_points(pts)
-            p0 = np.array(pts, dtype=np.float32).reshape(-1, 1, 2)
-            old_gray_frame = gray_frame.copy()
-            system_mode = 'TRACKING'
-    elif key == ord('r'):
-        corner_points = []
-        current_matrix_M = None
-        p0 = None
-        system_mode = 'MANUAL'
-    elif key == ord('c'):
-        if system_mode == 'TRACKING' and current_matrix_M is not None:
-            print("\n--- HYBRID ANALYSIS STARTING ---")
-            
-            print("[STAGE 1] YOLO (Local) is analyzing...")
-            yolo_fen = generate_fen_from_yolo(clean_frame, current_matrix_M)
-            
-            print(">> Visual Correction Panel opened. Please correct errors on the board and approve.")
-            approved_fen = visual_fen_corrector(yolo_fen)
-            
-            print(f"APPROVED FEN: {approved_fen}")
-            
-            if is_position_valid(approved_fen):
-                print(">> Position valid! Sending to Stockfish...")
-                best_move = find_best_move(approved_fen)
-                print(f">>> RECOMMENDED MOVE: {best_move} <<<")
-                print("------------------------\n")
+def generate_fen_from_dict(board_dict):
+    rows = []
+    for r in range(8):
+        empty = 0
+        row_str = ""
+        for c in range(8):
+            if (r, c) in board_dict:
+                if empty > 0:
+                    row_str += str(empty)
+                    empty = 0
+                row_str += board_dict[(r, c)]
             else:
-                print(">> ERROR: Manually corrected board still violates chess rules! (e.g., missing king)")
-                print("------------------------\n")
+                empty += 1
+        if empty > 0: row_str += str(empty)
+        rows.append(row_str)
+    return "/".join(rows) + " w - - 0 1"
 
-cap.release()
-cv2.destroyAllWindows()
+def draw_piece(screen, piece_char, center_x, center_y, loaded_images, font):
+    if piece_char in loaded_images:
+        img = loaded_images[piece_char]
+        rect = img.get_rect(center=(center_x, center_y))
+        screen.blit(img, rect)
+    else:
+        if piece_char.isupper():
+            pygame.draw.circle(screen, (255, 255, 255), (center_x, center_y), 25)
+            pygame.draw.circle(screen, (0, 0, 0), (center_x, center_y), 25, 2)
+            text = font.render(piece_char, True, (0, 0, 0))
+        else:
+            pygame.draw.circle(screen, (20, 20, 20), (center_x, center_y), 25)
+            pygame.draw.circle(screen, (200, 200, 200), (center_x, center_y), 25, 2)
+            text = font.render(piece_char.upper(), True, (255, 255, 255))
+        text_rect = text.get_rect(center=(center_x, center_y))
+        screen.blit(text, text_rect)
+
+def edit_board_pygame(board_matrix):
+    pygame.init()
+    screen = pygame.display.set_mode((900, 600))
+    pygame.display.set_caption("Yapay Zeka Hata Ayıklayıcı (Drag & Drop)")
+    
+    SQ_SIZE = 70
+    OFS_X, OFS_Y = 20, 20
+    font = pygame.font.SysFont('arial', 30, bold=True)
+    msg_font = pygame.font.SysFont('arial', 20, bold=True)
+
+    loaded_images = {}
+    for fen_char, filename in FEN_TO_FILE.items():
+        filepath = os.path.join("pieces", filename)
+        if os.path.exists(filepath):
+            try:
+                img = pygame.image.load(filepath)
+                img = pygame.transform.smoothscale(img, (60, 60)) 
+                loaded_images[fen_char] = img
+            except: pass
+
+    board_state = {}
+    for r in range(8):
+        for c in range(8):
+            if board_matrix[r][c] != "":
+                board_state[(r, c)] = board_matrix[r][c]
+
+    side_pieces = [
+        ('K', 650, 80), ('Q', 730, 80), ('R', 810, 80),
+        ('B', 650, 160), ('N', 730, 160), ('P', 810, 160),
+        ('k', 650, 260), ('q', 730, 260), ('r', 810, 260),
+        ('b', 650, 340), ('n', 730, 340), ('p', 810, 340)
+    ]
+
+    btn_rect = pygame.Rect(630, 480, 220, 60)
+    dragging = False
+    dragged_piece = None
+    error_msg = ""
+    
+    running = True
+    final_fen = None
+
+    while running:
+        screen.fill((50, 50, 55)) 
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return None
+
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    if btn_rect.collidepoint(mouse_x, mouse_y):
+                        fen_attempt = generate_fen_from_dict(board_state)
+                        if "K" in fen_attempt and "k" in fen_attempt:
+                            final_fen = fen_attempt
+                            running = False
+                        else:
+                            error_msg = "HATA: Her iki Şah (K/k) tahtada olmali!"
+                    else:
+                        c, r = (mouse_x - OFS_X) // SQ_SIZE, (mouse_y - OFS_Y) // SQ_SIZE
+                        if 0 <= r < 8 and 0 <= c < 8:
+                            if (r, c) in board_state:
+                                dragged_piece = board_state.pop((r, c))
+                                dragging = True
+                                error_msg = ""
+                        else:
+                            for p, px, py in side_pieces:
+                                if (px-30) <= mouse_x <= (px+30) and (py-30) <= mouse_y <= (py+30):
+                                    dragged_piece = p
+                                    dragging = True
+                                    error_msg = ""
+                                    break
+
+            elif event.type == pygame.MOUSEBUTTONUP:
+                if event.button == 1 and dragging:
+                    c, r = (mouse_x - OFS_X) // SQ_SIZE, (mouse_y - OFS_Y) // SQ_SIZE
+                    if 0 <= r < 8 and 0 <= c < 8:
+                        board_state[(r, c)] = dragged_piece
+                    dragging = False
+                    dragged_piece = None
+
+        for r in range(8):
+            for c in range(8):
+                color = (235, 236, 208) if (r+c)%2==0 else (115, 149, 82) 
+                pygame.draw.rect(screen, color, (OFS_X + c*SQ_SIZE, OFS_Y + r*SQ_SIZE, SQ_SIZE, SQ_SIZE))
+
+        for (r, c), piece in board_state.items():
+            draw_piece(screen, piece, OFS_X + c*SQ_SIZE + 35, OFS_Y + r*SQ_SIZE + 35, loaded_images, font)
+
+        pygame.draw.rect(screen, (70, 70, 75), (610, 20, 260, 420), border_radius=15)
+        
+        for p, px, py in side_pieces:
+            draw_piece(screen, p, px, py, loaded_images, font)
+
+        pygame.draw.rect(screen, (0, 180, 80), btn_rect, border_radius=10)
+        btn_text = font.render("ANALİZE GÖNDER", True, (255, 255, 255))
+        screen.blit(btn_text, (btn_rect.x + 15, btn_rect.y + 12))
+
+        if error_msg:
+            err_text = msg_font.render(error_msg, True, (255, 50, 50))
+            screen.blit(err_text, (610, 445))
+
+        if dragging and dragged_piece:
+            draw_piece(screen, dragged_piece, mouse_x, mouse_y, loaded_images, font)
+
+        pygame.display.flip()
+
+    pygame.quit()
+    return final_fen
+
+# ==========================================
+# 🤖 ANALYSIS PIPELINE
+# ===========================================
+def analyze_with_stockfish(fen_code):
+    try:
+        if stockfish.is_fen_valid(fen_code):
+            stockfish.set_fen_position(fen_code)
+            return stockfish.get_best_move()
+        else:
+            return "Geçersiz FEN formati!"
+    except Exception as e:
+        return f"Motor Hatası: {e}"
+
+def run_pipeline(warped_img):
+    print("\n--- ANALİZ BAŞLADI ---")
+    results = yolo_model(warped_img, verbose=False)
+    
+    print("1. Yerel YOLO Matrisi oluşturuldu.")
+    board_matrix = generate_matrix_from_yolo(results, warped_img)
+    
+    print("2. Hakem Filtresi uygulanıyor...")
+    board_matrix = apply_chess_rules(board_matrix)
+    
+    print("3. Pygame arayüzü açılıyor...")
+    validated_fen = edit_board_pygame(board_matrix)
+    
+    if not validated_fen:
+        print("Arayüz kapatıldı, analiz iptal edildi.\n")
+        return
+        
+    print(f"4. Doğrulanmış FEN: {validated_fen}")
+    print("5. Stockfish hamle hesaplıyor...")
+    
+    best_move = analyze_with_stockfish(validated_fen)
+    
+    print(f"\n=================================")
+    print(f"♟️ ÖNERİLEN EN İYİ HAMLE: {str(best_move).upper()}")
+    print(f"=================================\n")
+
+# ==========================================
+# 🎥 MAIN CAMERA LOOP
+# ===========================================
+def main():
+    global points
+    cap = cv2.VideoCapture(CAMERA_ADDRESS)
+    
+    cv2.namedWindow("Real-Time Chess Vision", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("Real-Time Chess Vision", 800, 600)
+    cv2.setMouseCallback("Real-Time Chess Vision", click_event)
+
+    print("Kamera Başlatıldı! Kısayollar:\n"
+          "[A] Otomatik Tahta Tespiti\n"
+          "[R] Noktaları Sıfırla\n"
+          "[C] Analizi Başlat (Sürükle-Bırak Arayüzlü)\n"
+          "[Q] Çıkış\n")
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        display_frame = frame.copy()
+
+        if len(points) > 0:
+            for pt in points:
+                cv2.circle(display_frame, (int(pt[0]), int(pt[1])), 5, (0, 0, 255), -1)
+            if len(points) == 4:
+                cv2.polylines(display_frame, [np.array(points, dtype=np.int32)], isClosed=True, color=(0, 255, 0), thickness=2)
+
+        cv2.imshow("Real-Time Chess Vision", display_frame)
+
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'):
+            break
+        elif key == ord('r'):
+            points = []
+            print("Noktalar sıfırlandı.")
+        elif key == ord('a'):
+            detected_corners = auto_detect_board(frame)
+            if detected_corners is not None:
+                points = detected_corners.tolist()
+                print("Başarılı! Tahta köşeleri otomatik bulundu.")
+            else:
+                print("HATA: Tahta net bulunamadı.")
+        elif key == ord('c'):
+            if len(points) == 4:
+                warped = warp_board(frame, points)
+                cv2.imshow("Warped Board", warped)
+                run_pipeline(warped)
+            else:
+                print("Analiz için tam 4 köşe gerekli!")
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    main()

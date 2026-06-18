@@ -1,30 +1,172 @@
 # Real-Time Chess Vision & Analysis Pipeline ♟️🤖
 
-This project is an end-to-end computer vision and AI pipeline that detects chess pieces from a live camera feed, generates FEN codes, and uses the Stockfish engine to recommend the best moves. It features a fault-tolerant hybrid architecture utilizing both local YOLO models and the cloud-based Google Gemini API.
+An end-to-end Computer Vision and AI system that detects chess positions from a live camera feed, converts them into FEN notation, and analyzes the board using the Stockfish chess engine.
 
-## 🚀 Features
-* **Real-Time Object Detection:** Custom trained YOLOv8 model for detecting and classifying chess pieces.
-* **Geometric Mapping:** OpenCV perspective warping to track board corners and map physical coordinates to a logical 8x8 matrix.
-* **Hybrid AI Fallback:** Integrates Google Gemini API (Multimodal VLM) as a backup for complex board states where local detection confidence is low.
-* **Human-in-the-Loop GUI:** An interactive Tkinter-based interface allowing users to manually correct AI misclassifications before engine evaluation.
-* **Chess Engine Integration:** Analyzes the validated board state using the Stockfish engine to predict the most optimal moves.
+The project combines **YOLOv8 object detection**, **OpenCV perspective transformation**, **interactive board correction**, and **engine-based move analysis** into a single real-time pipeline.
 
-## 🛠️ Installation & Setup
+---
 
-1. Clone this repository:
-   `git clone https://github.com/ZeroHighx/ChessPieces_detection_with_camera_and_YOLOv8.git`
+# 🚀 Features
 
-2. Install the required dependencies:
-   `pip install -r requirements.txt`
+### ♟️ Real-Time Chess Piece Detection
 
-3. Download the [Stockfish Engine](https://stockfishchess.org/download/) and update the `STOCKFISH_PATH` variable in `camera_detected.py`.
+* Custom-trained YOLOv8 model for detecting and classifying chess pieces in real time.
+* Supports webcam or IP camera streams.
 
-4. Update the `CAMERA_ADDRESS` (use `0` for default webcam or your IP Camera URL).
+### 📐 Perspective Transformation & Board Mapping
 
-5. Run the system:
-   `python chess_camera_detection.py`
+* Uses OpenCV perspective warping to detect and flatten the chessboard.
+* Converts physical board coordinates into a logical 8×8 matrix.
 
-## 🎮 How to Use
-* **A:** Detection Lock camera view and start automatic board tracking.
-* **R:** Reset tracking points for manual corner selection (Click 4 corners of the board).
-* **C:** Capture the current frame and run the Hybrid Analysis Pipeline (YOLO -> GUI Correction -> Stockfish).
+### 🧠 AI Hallucination Filtering
+
+* Automatically removes impossible detections using rule-based chess validation.
+* Example: prevents pawns from appearing on the 1st or 8th rank.
+
+### 🖱️ Human-in-the-Loop Correction Interface
+
+* Interactive drag-and-drop Pygame GUI.
+* Allows users to manually fix incorrect detections before analysis.
+
+### 🤖 Chess Engine Integration
+
+* Generates valid FEN notation from the detected board.
+* Uses Stockfish to calculate the best move from the current position.
+
+### 📦 Automatic Chess Asset Downloader
+
+* Automatically downloads high-quality chess piece sprites from Chess.com if assets are missing.
+
+---
+
+# 🛠️ Installation & Setup
+
+## 1. Clone the Repository
+
+```bash
+git clone https://github.com/ZeroHighx/ChessPieces_detection_with_camera_and_YOLOv8.git
+cd ChessPieces_detection_with_camera_and_YOLOv8
+```
+
+---
+
+## 2. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 3. Download the YOLO Model
+
+The trained model file:
+
+```bash
+chess-model-yolov8m.pt
+```
+
+is available in the **Releases** section of this repository.
+
+Download it and place it in the project root directory.
+
+---
+
+## 4. Download Stockfish
+
+Download the Stockfish engine from:
+
+https://stockfishchess.org/download/
+
+Then update the path inside the script:
+
+```python
+STOCKFISH_PATH = r"C:\path\to\stockfish.exe"
+```
+
+---
+
+## 5. Configure Camera Source
+
+For default webcam:
+
+```python
+CAMERA_ADDRESS = 0
+```
+
+For IP webcam:
+
+```python
+CAMERA_ADDRESS = "http://YOUR_PHONE_IP:8080/video"
+```
+
+---
+
+## 6. Run the Project
+
+```bash
+python chess_camera_detection.py
+```
+
+---
+
+# 🎮 Controls
+
+| Key | Action                           |
+| --- | -------------------------------- |
+| A   | Automatic board detection        |
+| R   | Reset selected corner points     |
+| C   | Capture frame and start analysis |
+| Q   | Quit application                 |
+
+---
+
+# 🔄 Pipeline Overview
+
+```text
+Camera Feed
+     ↓
+Board Detection
+     ↓
+Perspective Warp
+     ↓
+YOLOv8 Piece Detection
+     ↓
+Rule-Based Chess Validation
+     ↓
+Manual GUI Correction
+     ↓
+FEN Generation
+     ↓
+Stockfish Analysis
+     ↓
+Best Move Recommendation
+```
+
+---
+
+# 🧰 Technologies Used
+
+* Python
+* OpenCV
+* YOLOv8 (Ultralytics)
+* NumPy
+* Pygame
+* Stockfish Engine
+
+---
+
+# 📌 Future Improvements
+
+* Full automatic move tracking
+* Chess clock integration
+* Online multiplayer board recognition
+* PGN export support
+* Mobile application version
+* Stronger board auto-detection system
+
+---
+
+# 📄 License
+
+This project is intended for educational and research purposes.

@@ -19,14 +19,12 @@ This project is an end-to-end computer vision and AI pipeline that detects chess
 
 3. Download the [Stockfish Engine](https://stockfishchess.org/download/) and update the `STOCKFISH_PATH` variable in `camera_detected.py`.
 
-4. Get a free Google Gemini API Key from Google AI Studio and paste it into the `GEMINI_API_KEY` variable.
+4. Update the `CAMERA_ADDRESS` (use `0` for default webcam or your IP Camera URL).
 
-5. Update the `CAMERA_ADDRESS` (use `0` for default webcam or your IP Camera URL).
-
-6. Run the system:
-   `python camera_detected.py`
+5. Run the system:
+   `python chess_camera_detection.py`
 
 ## 🎮 How to Use
-* **L:** Lock camera view and start automatic board tracking.
+* **A:** Detection Lock camera view and start automatic board tracking.
 * **R:** Reset tracking points for manual corner selection (Click 4 corners of the board).
 * **C:** Capture the current frame and run the Hybrid Analysis Pipeline (YOLO -> GUI Correction -> Stockfish).

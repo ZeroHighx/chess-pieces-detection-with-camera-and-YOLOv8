@@ -12,7 +12,17 @@ An end-to-end Computer Vision and AI system that detects chess positions from a 
 
 The project combines **YOLOv8 object detection**, **OpenCV perspective transformation**, **interactive board correction**, and **engine-based move analysis** into a single real-time pipeline.
 
----
+## 💡 Motivation & The Development Journey
+
+My primary goal for this project was born out of a personal need: I realized there are almost no reliable, completely offline applications on the market that allow users to snap a picture of a physical chessboard, convert it to FEN format, and instantly analyze it with a chess engine. I wanted to build exactly that.
+
+Initially, my vision was fully automated: the system would use a phone camera, auto-detect the board corners, read the pieces, and feed the FEN directly to Stockfish. However, real-world computer vision is challenging, and the journey didn't go exactly as planned:
+
+* **The Object Detection Struggle:** I quickly noticed that pre-trained YOLO models struggled heavily with recognizing chess pieces from different angles. To fix this, I photographed my own physical chessboard and trained a custom YOLO model on Roboflow. I achieved an 86.4% accuracy rate, but for chess, a single wrong piece ruins the entire analysis. Eventually, I had to revert to a more generalized model I found online.
+* **The AI API Attempt:** Hoping for better accuracy, I integrated the Gemini API to analyze the board images and generate the FEN. Unfortunately, LLMs still struggle with precise spatial reasoning for chessboards. More importantly, using an API required an active internet connection, which violated my core goal of keeping this tool 100% offline. I decided to remove it.
+* **The Pivot to UI (Human-in-the-Loop):** Since the piece recognition performance was still too low for full automation, I pivoted my approach. I decided to build a "human-in-the-loop" system. I first built a user interface using Tkinter to show the detected board and let the user correct the AI's mistakes manually. I wasn't satisfied with Tkinter's look and feel, so I completely rebuilt the interface using **Pygame** to make the drag-and-drop experience smoother.
+
+While the final piece recognition accuracy didn't meet my initial ambitious expectations, this project became an incredible engineering journey. I learned how to train custom models, integrate external engines, build interactive GUIs, and most importantly, how to pivot and find practical workarounds when hitting technical limits. I am sharing this project on GitHub exactly as it is—imperfections included—as a foundation for myself and others to improve upon.
 
 # 🚀 Features
 

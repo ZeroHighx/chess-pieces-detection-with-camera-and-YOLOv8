@@ -157,9 +157,7 @@ Best Move Recommendation
 
 * Python
 * OpenCV
-* YOLOv8 (Ultralytics)<img width="1871" height="932" alt="tahta+openCV" src="https://github.com/user-attachments/assets/6a94e3e0-5ca6-49b8-879d-e854265e1d72" />
-<img width="1871" height="932" alt="tahta+openCV" src="https://github.com/user-attachments/assets/21828d3e-8e2d-4535-906a-fa398bfaec4b" />
-
+* YOLOv8 (Ultralytics)
 * NumPy
 * Pygame
 * Stockfish Engine

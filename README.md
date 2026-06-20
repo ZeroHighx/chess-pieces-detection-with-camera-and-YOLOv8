@@ -1,4 +1,12 @@
 # Real-Time Chess Vision & Analysis Pipeline ♟️🤖
+<img width="1871" height="932" alt="tahta+openCV" src="https://github.com/user-attachments/assets/cb358663-66b3-404a-bd37-04cf80d2ae57" />
+
+<img width="4096" height="2304" alt="kenditahtam (1)" src="https://github.com/user-attachments/assets/b64fea1a-a257-4113-a608-6f713e9cc214" />
+
+<img width="1126" height="793" alt="pygameanalyze" src="https://github.com/user-attachments/assets/8d855118-5715-4352-ac66-49a1ccaf37e3" />
+
+
+
 
 An end-to-end Computer Vision and AI system that detects chess positions from a live camera feed, converts them into FEN notation, and analyzes the board using the Stockfish chess engine.
 
@@ -149,7 +157,9 @@ Best Move Recommendation
 
 * Python
 * OpenCV
-* YOLOv8 (Ultralytics)
+* YOLOv8 (Ultralytics)<img width="1871" height="932" alt="tahta+openCV" src="https://github.com/user-attachments/assets/6a94e3e0-5ca6-49b8-879d-e854265e1d72" />
+<img width="1871" height="932" alt="tahta+openCV" src="https://github.com/user-attachments/assets/21828d3e-8e2d-4535-906a-fa398bfaec4b" />
+
 * NumPy
 * Pygame
 * Stockfish Engine

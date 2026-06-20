@@ -5,8 +5,8 @@
 
 <img width="1126" height="793" alt="pygameanalyze" src="https://github.com/user-attachments/assets/8d855118-5715-4352-ac66-49a1ccaf37e3" />
 
-
-
+<br>
+<br>
 
 An end-to-end Computer Vision and AI system that detects chess positions from a live camera feed, converts them into FEN notation, and analyzes the board using the Stockfish chess engine.
 
